@@ -13,13 +13,13 @@ import {
   Alert
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import socket, { SOCKET_URL } from '../utils/socket';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../utils/navigationTypes';
 import { Comment } from '../utils/types';
 import CommentUI from '../components/CommentUI';
+import { useAuth } from '../context/AuthContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Comments'>;
 
@@ -27,9 +27,9 @@ export default function Comments({ route, navigation }: Props) {
   const { todo_id, title } = route.params;
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentInput, setCommentInput] = useState<string>('');
-  const [username, setUsername] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const { user } = useAuth();
 
   // Function to retrieve comments
   const fetchComments = () => {
@@ -49,21 +49,6 @@ export default function Comments({ route, navigation }: Props) {
   };
 
   useEffect(() => {
-    const getUsername = async () => {
-      try {
-        const storedUsername = await AsyncStorage.getItem('username');
-        if (storedUsername) {
-          setUsername(storedUsername);
-        } else {
-          navigation.navigate('Login');
-        }
-      } catch (error) {
-        console.error('Error retrieving username:', error);
-      }
-    };
-
-    getUsername();
-
     // Emit event to retrieve comments for this todo
     fetchComments();
 
@@ -81,15 +66,15 @@ export default function Comments({ route, navigation }: Props) {
     return () => {
       socket.off('displayComments');
     };
-  }, [todo_id, navigation]);
+  }, [todo_id]);
 
   const handleAddComment = () => {
-    if (commentInput.trim().length === 0 || !username) return;
+    if (commentInput.trim().length === 0 || !user) return;
 
     socket.emit('addComment', {
       todo_id,
       comment: commentInput,
-      user: username,
+      user: user.username,
     });
 
     setCommentInput('');

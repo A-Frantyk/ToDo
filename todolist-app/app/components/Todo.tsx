@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import socket from '../utils/socket';
 import { Todo as TodoType } from '../utils/types';
 import { RootStackParamList } from '../utils/navigationTypes';
+import { useAuth } from '../context/AuthContext';
 
 type TodoProps = {
   item: TodoType;
@@ -13,8 +14,14 @@ type TodoProps = {
 
 const Todo = ({ item }: TodoProps) => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { user } = useAuth();
 
   const handleDeleteTodo = (id: string) => {
+    // Check if the user is the creator of the todo
+    if (item.userId && user && String(item.userId) !== String(user.id)) {
+      Alert.alert('Unauthorized', 'You can only delete your own todos');
+      return;
+    }
     socket.emit('deleteTodo', id);
   };
 
@@ -30,16 +37,25 @@ const Todo = ({ item }: TodoProps) => {
         style={styles.todoContent}
       >
         <Text style={styles.todoTitle}>{item.title}</Text>
-        <Text style={styles.commentCount}>
-          {item.comments.length > 0 ? `${item.comments.length} comments` : 'Add comment'}
-        </Text>
+        <View style={styles.todoMeta}>
+          {item.username && (
+            <Text style={styles.todoCreator}>
+              By: {item.username}
+            </Text>
+          )}
+          <Text style={styles.commentCount}>
+            {item.comments.length > 0 ? `${item.comments.length} comments` : 'Add comment'}
+          </Text>
+        </View>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.deleteButton}
-        onPress={() => handleDeleteTodo(item._id)}>
-        <Ionicons name="trash-outline" size={20} color="#ffffff" />
-      </TouchableOpacity>
+      {/* Only show delete button if user is the creator */}
+      {(!item.userId || (user && String(item.userId) === String(user.id))) && (
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => handleDeleteTodo(item._id)}>
+          <Ionicons name="trash-outline" size={20} color="#ffffff" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -67,6 +83,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
+  },
+  todoMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  todoCreator: {
+    color: '#aaaaaa',
+    fontSize: 12,
+    marginRight: 8,
   },
   commentCount: {
     color: '#9370db',

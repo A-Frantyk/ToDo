@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import socket from '../utils/socket';
+import { useAuth } from '../context/AuthContext';
 
 interface ShowModalProps {
   visible: boolean;
@@ -18,6 +19,7 @@ interface ShowModalProps {
 
 const ShowModal = ({ visible, setVisible }: ShowModalProps) => {
   const [todoInput, setTodoInput] = useState<string>('');
+  const { user } = useAuth();
 
   const handleAddTodo = () => {
     if (todoInput.trim().length === 0) {

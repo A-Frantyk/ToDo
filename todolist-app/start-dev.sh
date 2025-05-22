@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start the Node.js server
-echo "Starting Node.js server..."
+echo "Starting Node.js server with JWT authentication..."
 cd server
 npm start &
 SERVER_PID=$!
