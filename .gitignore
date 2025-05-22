@@ -17,6 +17,7 @@ yarn-error.log*
 .npm
 
 # Expo / React Native
+*/.expo/
 .expo/
 dist/
 web-build/
