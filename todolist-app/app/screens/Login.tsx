@@ -44,7 +44,6 @@ export default function Login({ navigation }: Props) {
       } else {
         await register({ username, password });
       }
-      // No need to navigate - the AuthProvider will handle redirection
     } catch (err) {
       Alert.alert(
         isLoginMode ? 'Login Failed' : 'Registration Failed',

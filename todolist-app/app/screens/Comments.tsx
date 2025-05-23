@@ -36,11 +36,9 @@ export default function Comments({ route, navigation }: Props) {
     socket.emit('retrieveComments', todo_id);
   };
 
-  // Handle refresh
   const onRefresh = () => {
     setRefreshing(true);
     fetchComments();
-    // If no response after 3 seconds, stop refreshing animation
     setTimeout(() => {
       if (refreshing) {
         setRefreshing(false);
@@ -49,12 +47,9 @@ export default function Comments({ route, navigation }: Props) {
   };
 
   useEffect(() => {
-    // Emit event to retrieve comments for this todo
     fetchComments();
 
-    // Listen for comments from server
     socket.on('displayComments', (data: { comments: Comment[], todo_id: string }) => {
-      // Only update comments if they're for this todo
       if (data.todo_id === todo_id) {
         setComments(data.comments);
         setLoading(false);
@@ -62,7 +57,6 @@ export default function Comments({ route, navigation }: Props) {
       }
     });
 
-    // Clean up on unmount
     return () => {
       socket.off('displayComments');
     };
@@ -191,7 +185,6 @@ const styles = StyleSheet.create({
   commentsList: {
     padding: 16,
   },
-  // Removed unused comment styles as we're now using CommentUI component
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',

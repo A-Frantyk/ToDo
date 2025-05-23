@@ -17,7 +17,6 @@ const Todo = ({ item }: TodoProps) => {
   const { user } = useAuth();
 
   const handleDeleteTodo = (id: string) => {
-    // Check if the user is the creator of the todo
     if (item.userId && user && String(item.userId) !== String(user.id)) {
       Alert.alert('Unauthorized', 'You can only delete your own todos');
       return;

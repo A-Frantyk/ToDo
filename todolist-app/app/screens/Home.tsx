@@ -36,8 +36,6 @@ export default function Home({ navigation }: Props) {
       if (!token) {
         throw new Error('No auth token available');
       }
-      
-      // Use the same URL as socket.io connection but with auth header
       const todosEndpoint = `${SOCKET_URL}/todos`;
       const response = await fetch(todosEndpoint, {
         headers: {
@@ -47,7 +45,6 @@ export default function Home({ navigation }: Props) {
       
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          // Token might be invalid or expired
           Alert.alert('Authentication Error', 'Please log in again');
           await logout();
           return;
@@ -67,7 +64,6 @@ export default function Home({ navigation }: Props) {
     }
   };
 
-  // Handle refresh when pulling down the list
   const onRefresh = () => {
     setRefreshing(true);
     fetchTodos();
@@ -76,19 +72,15 @@ export default function Home({ navigation }: Props) {
   useEffect(() => {
     const setupSocketAndFetchTodos = async () => {
       try {
-        // Initialize the socket with auth token
         await initializeSocket();
         
-        // Fetch todos initially
         fetchTodos();
 
-        // Socket event listeners for real-time updates
         socket.on('todos', (data: TodoInterface[]) => {
           setTodos(data);
           setLoading(false);
         });
         
-        // Listen for errors
         socket.on('error', (error) => {
           Alert.alert('Error', error.message || 'An error occurred');
         });
@@ -100,7 +92,6 @@ export default function Home({ navigation }: Props) {
 
     setupSocketAndFetchTodos();
 
-    // Clean up
     return () => {
       socket.off('todos');
       socket.off('error');
@@ -110,7 +101,6 @@ export default function Home({ navigation }: Props) {
   const handleLogout = async () => {
     try {
       await logout();
-      // Navigation is handled by the auth context via App.tsx
     } catch (error) {
       console.error('Error during logout:', error);
     }
@@ -170,7 +160,6 @@ export default function Home({ navigation }: Props) {
         <Ionicons name="add" size={30} color="#ffffff" />
       </TouchableOpacity>
 
-      {/* Using our new ShowModal component */}
       <ShowModal visible={modalVisible} setVisible={setModalVisible} />
     </View>
   );
