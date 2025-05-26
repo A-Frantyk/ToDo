@@ -11,6 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import socket from '../utils/socket';
 import { useAuth } from '../context/AuthContext';
+import { useAppDispatch } from '../store/hooks';
+import { addTodo } from '../store/slices/todosSlice';
 
 interface ShowModalProps {
   visible: boolean;
@@ -20,6 +22,7 @@ interface ShowModalProps {
 const ShowModal = ({ visible, setVisible }: ShowModalProps) => {
   const [todoInput, setTodoInput] = useState<string>('');
   const { user } = useAuth();
+  const dispatch = useAppDispatch();
 
   const handleAddTodo = () => {
     if (todoInput.trim().length === 0) {
@@ -27,6 +30,7 @@ const ShowModal = ({ visible, setVisible }: ShowModalProps) => {
       return;
     }
 
+    // Emit to socket and let the server create the todo
     socket.emit('addTodo', todoInput);
     setTodoInput('');
     setVisible(false);

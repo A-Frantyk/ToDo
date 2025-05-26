@@ -2,6 +2,8 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { Provider } from 'react-redux';
+import { store } from './store/store';
 import Login from './screens/Login';
 import Home from './screens/Home';
 import Comments from './screens/Comments';
@@ -43,12 +45,14 @@ const AppNavigator = () => {
   );
 };
 
-// Root component that provides the auth context
+// Root component that provides the auth context and redux store
 export default function App() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <Provider store={store}>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </Provider>
   );
 }
 

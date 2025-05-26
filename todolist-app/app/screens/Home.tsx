@@ -19,16 +19,19 @@ import { Todo as TodoInterface } from '../utils/types';
 import Todo from '../components/Todo';
 import ShowModal from '../components/ShowModal';
 import { useAuth } from '../context/AuthContext';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { setTodos, setLoading } from '../store/slices/todosSlice';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function Home({ navigation }: Props) {
-  const [todos, setTodos] = useState<TodoInterface[]>([]);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   
   const { user, token, logout } = useAuth();
+  const dispatch = useAppDispatch();
+  const todos = useAppSelector(state => state.todos.items);
+  const loading = useAppSelector(state => state.todos.loading);
 
   // Fetch todos function that can be reused
   const fetchTodos = async () => {
@@ -36,6 +39,7 @@ export default function Home({ navigation }: Props) {
       if (!token) {
         throw new Error('No auth token available');
       }
+      dispatch(setLoading(true));
       const todosEndpoint = `${SOCKET_URL}/todos`;
       const response = await fetch(todosEndpoint, {
         headers: {
@@ -53,12 +57,12 @@ export default function Home({ navigation }: Props) {
       }
       
       const data = await response.json();
-      setTodos(data);
-      setLoading(false);
+      dispatch(setTodos(data));
+      dispatch(setLoading(false));
       setRefreshing(false);
     } catch (error) {
       console.error('Error fetching todos:', error);
-      setLoading(false);
+      dispatch(setLoading(false));
       setRefreshing(false);
       Alert.alert('Error', 'Failed to fetch todos. Pull down to retry.');
     }
@@ -77,8 +81,8 @@ export default function Home({ navigation }: Props) {
         fetchTodos();
 
         socket.on('todos', (data: TodoInterface[]) => {
-          setTodos(data);
-          setLoading(false);
+          dispatch(setTodos(data));
+          dispatch(setLoading(false));
         });
         
         socket.on('error', (error) => {
@@ -86,7 +90,7 @@ export default function Home({ navigation }: Props) {
         });
       } catch (error) {
         console.error('Error setting up socket or fetching todos:', error);
-        setLoading(false);
+        dispatch(setLoading(false));
       }
     };
 
@@ -96,7 +100,7 @@ export default function Home({ navigation }: Props) {
       socket.off('todos');
       socket.off('error');
     };
-  }, [token]);
+  }, [token, dispatch]);
 
   const handleLogout = async () => {
     try {

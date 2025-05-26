@@ -7,6 +7,8 @@ import socket from '../utils/socket';
 import { Todo as TodoType } from '../utils/types';
 import { RootStackParamList } from '../utils/navigationTypes';
 import { useAuth } from '../context/AuthContext';
+import { useAppDispatch } from '../store/hooks';
+import { removeTodo } from '../store/slices/todosSlice';
 
 type TodoProps = {
   item: TodoType;
@@ -15,6 +17,7 @@ type TodoProps = {
 const Todo = ({ item }: TodoProps) => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
+  const dispatch = useAppDispatch();
 
   const handleDeleteTodo = (id: string) => {
     if (item.userId && user && String(item.userId) !== String(user.id)) {
@@ -22,6 +25,7 @@ const Todo = ({ item }: TodoProps) => {
       return;
     }
     socket.emit('deleteTodo', id);
+    dispatch(removeTodo(id));
   };
 
   return (
