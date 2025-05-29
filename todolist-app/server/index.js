@@ -7,6 +7,7 @@ const socketIO = require("socket.io");
 const db = require("./config/database");
 const authRoutes = require("./routes/auth");
 const { verifyToken } = require("./middleware/auth");
+const TodoModel = require("./models/todoModel");
 
 const app = express();
 const PORT = 4000;
@@ -44,69 +45,88 @@ io.use((socket, next) => {
     }
 });
 
-// Array to store todos
-let todoList = [];
-
 // Function to generate random ID
 const generateID = () => Math.random().toString(36).substring(2, 10);
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
     console.log(`⚡: ${socket.id} user just connected! User ID: ${socket.user.id}, Username: ${socket.user.username}`);
 
     // Send todos to the client
-    socket.emit("todos", todoList);
+    try {
+        const todos = await TodoModel.getAllTodos();
+        socket.emit("todos", todos);
+    } catch (error) {
+        console.error('Error fetching todos:', error);
+        socket.emit("error", { message: "Error fetching todos" });
+    }
 
     // Add a todo
-    socket.on("addTodo", (todo) => {
-        const newTodo = {
-            _id: generateID(),
-            title: todo,
-            comments: [],
-            userId: socket.user.id,
-            username: socket.user.username
-        };
-        todoList.unshift(newTodo);
-        io.emit("todos", todoList); // Broadcast to all clients
+    socket.on("addTodo", async (todo) => {
+        try {
+            const newTodo = await TodoModel.addTodo(
+                generateID(),
+                todo,
+                socket.user.id,
+                socket.user.username
+            );
+            
+            // Broadcast updated todos to all clients
+            const todos = await TodoModel.getAllTodos();
+            io.emit("todos", todos);
+        } catch (error) {
+            console.error('Error adding todo:', error);
+            socket.emit("error", { message: "Error adding todo" });
+        }
     });
 
     // Delete a todo
-    socket.on("deleteTodo", (id) => {
-        // Only allow users to delete their own todos
-        const todo = todoList.find(t => t._id === id);
-        if (todo && todo.userId === socket.user.id) {
-            todoList = todoList.filter((todo) => todo._id !== id);
-            io.emit("todos", todoList); // Broadcast to all clients
-        } else {
-            socket.emit("error", { message: "Unauthorized: Cannot delete another user's todo" });
+    socket.on("deleteTodo", async (id) => {
+        try {
+            await TodoModel.deleteTodo(id, socket.user.id);
+            
+            // Broadcast updated todos to all clients
+            const todos = await TodoModel.getAllTodos();
+            io.emit("todos", todos);
+        } catch (error) {
+            console.error('Error deleting todo:', error);
+            socket.emit("error", { message: error.message });
         }
     });
 
     // Retrieve comments for a specific todo
-    socket.on("retrieveComments", (id) => {
-        const result = todoList.filter((todo) => todo._id === id);
-        if (result.length > 0) {
+    socket.on("retrieveComments", async (id) => {
+        try {
+            const comments = await TodoModel.getComments(id);
             socket.emit("displayComments", {
-                comments: result[0].comments,
+                comments: comments,
                 todo_id: id
             });
+        } catch (error) {
+            console.error('Error retrieving comments:', error);
+            socket.emit("error", { message: "Error retrieving comments" });
         }
     });
 
     // Add a comment to a todo
-    socket.on("addComment", (data) => {
-        const result = todoList.filter((todo) => todo._id === data.todo_id);
-        if (result.length > 0) {
-            result[0].comments.unshift({
-                id: generateID(),
-                title: data.comment,
-                user: socket.user.username,
-                userId: socket.user.id
-            });
-            // Broadcast comments to all clients
+    socket.on("addComment", async (data) => {
+        try {
+            await TodoModel.addComment(
+                generateID(),
+                data.todo_id,
+                data.comment,
+                socket.user.id,
+                socket.user.username
+            );
+            
+            // Get updated comments and broadcast to all clients
+            const comments = await TodoModel.getComments(data.todo_id);
             io.emit("displayComments", {
-                comments: result[0].comments,
+                comments: comments,
                 todo_id: data.todo_id
             });
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            socket.emit("error", { message: error.message });
         }
     });
 
@@ -117,8 +137,93 @@ io.on("connection", (socket) => {
 });
 
 // API route to get todos
-app.get("/todos", verifyToken, (req, res) => {
-    res.json(todoList);
+app.get("/todos", verifyToken, async (req, res) => {
+    try {
+        const todos = await TodoModel.getAllTodos();
+        res.json(todos);
+    } catch (error) {
+        console.error('Error fetching todos:', error);
+        res.status(500).json({ error: "Error fetching todos" });
+    }
+});
+
+// API route to add a todo
+app.post("/todos", verifyToken, async (req, res) => {
+    try {
+        const { title } = req.body;
+        if (!title) {
+            return res.status(400).json({ error: "Title is required" });
+        }
+        
+        const newTodo = await TodoModel.addTodo(
+            generateID(),
+            title,
+            req.user.id,
+            req.user.username
+        );
+        
+        res.status(201).json(newTodo);
+    } catch (error) {
+        console.error('Error adding todo:', error);
+        res.status(500).json({ error: "Error adding todo" });
+    }
+});
+
+// API route to delete a todo
+app.delete("/todos/:id", verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await TodoModel.deleteTodo(id, req.user.id);
+        res.json({ message: "Todo deleted successfully" });
+    } catch (error) {
+        console.error('Error deleting todo:', error);
+        if (error.message.includes('Unauthorized') || error.message.includes('not found')) {
+            res.status(403).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: "Error deleting todo" });
+        }
+    }
+});
+
+// API route to get comments for a todo
+app.get("/todos/:id/comments", verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const comments = await TodoModel.getComments(id);
+        res.json(comments);
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+        res.status(500).json({ error: "Error fetching comments" });
+    }
+});
+
+// API route to add a comment to a todo
+app.post("/todos/:id/comments", verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { comment } = req.body;
+        
+        if (!comment) {
+            return res.status(400).json({ error: "Comment is required" });
+        }
+        
+        const newComment = await TodoModel.addComment(
+            generateID(),
+            id,
+            comment,
+            req.user.id,
+            req.user.username
+        );
+        
+        res.status(201).json(newComment);
+    } catch (error) {
+        console.error('Error adding comment:', error);
+        if (error.message.includes('not found')) {
+            res.status(404).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: "Error adding comment" });
+        }
+    }
 });
 
 // Default route

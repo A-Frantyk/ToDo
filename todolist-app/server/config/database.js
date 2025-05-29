@@ -21,6 +21,40 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 console.log('Users table ready');
             }
         });
+
+        // Create todos table if it doesn't exist
+        db.run(`CREATE TABLE IF NOT EXISTS todos (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            userId INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (userId) REFERENCES users (id)
+        )`, (err) => {
+            if (err) {
+                console.error('Error creating todos table:', err.message);
+            } else {
+                console.log('Todos table ready');
+            }
+        });
+
+        // Create comments table if it doesn't exist
+        db.run(`CREATE TABLE IF NOT EXISTS comments (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            todoId TEXT NOT NULL,
+            userId INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (todoId) REFERENCES todos (id),
+            FOREIGN KEY (userId) REFERENCES users (id)
+        )`, (err) => {
+            if (err) {
+                console.error('Error creating comments table:', err.message);
+            } else {
+                console.log('Comments table ready');
+            }
+        });
     }
 });
 
