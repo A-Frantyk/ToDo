@@ -1,29 +1,33 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('../config/database');
-const { JWT_SECRET } = require('../middleware/auth');
+import express, { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import db from '../config/database';
+import { JWT_SECRET } from '../middleware/auth';
+import { User, AuthenticatedRequest } from '../types';
 
 const router = express.Router();
 
 // Register a new user
-router.post('/register', async (req, res) => {
+router.post('/register', async (req: Request, res: Response): Promise<void> => {
     try {
-        const { username, password } = req.body;
+        const { username, password }: { username: string; password: string } = req.body;
         
         if (!username || !password) {
-            return res.status(400).json({ message: 'Username and password are required' });
+            res.status(400).json({ message: 'Username and password are required' });
+            return;
         }
         
         // Check if user already exists
-        db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
+        db.get('SELECT * FROM users WHERE username = ?', [username], async (err: Error | null, user: User | undefined) => {
             if (err) {
                 console.error(err);
-                return res.status(500).json({ message: 'Server error' });
+                res.status(500).json({ message: 'Server error' });
+                return;
             }
             
             if (user) {
-                return res.status(400).json({ message: 'User already exists' });
+                res.status(400).json({ message: 'User already exists' });
+                return;
             }
             
             // Hash the password
@@ -33,10 +37,11 @@ router.post('/register', async (req, res) => {
             // Insert the new user
             db.run('INSERT INTO users (username, password) VALUES (?, ?)', 
                 [username, hashedPassword], 
-                function(err) {
+                function(err: Error | null) {
                     if (err) {
                         console.error(err);
-                        return res.status(500).json({ message: 'Error registering user' });
+                        res.status(500).json({ message: 'Error registering user' });
+                        return;
                     }
                     
                     // Create and sign a JWT token
@@ -62,30 +67,34 @@ router.post('/register', async (req, res) => {
 });
 
 // Login an existing user
-router.post('/login', (req, res) => {
+router.post('/login', (req: Request, res: Response): void => {
     try {
-        const { username, password } = req.body;
+        const { username, password }: { username: string; password: string } = req.body;
         
         if (!username || !password) {
-            return res.status(400).json({ message: 'Username and password are required' });
+            res.status(400).json({ message: 'Username and password are required' });
+            return;
         }
         
         // Find the user
-        db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
+        db.get('SELECT * FROM users WHERE username = ?', [username], async (err: Error | null, user: User | undefined) => {
             if (err) {
                 console.error(err);
-                return res.status(500).json({ message: 'Server error' });
+                res.status(500).json({ message: 'Server error' });
+                return;
             }
             
             if (!user) {
-                return res.status(400).json({ message: 'Invalid credentials' });
+                res.status(400).json({ message: 'Invalid credentials' });
+                return;
             }
             
             // Compare passwords
-            const isMatch = await bcrypt.compare(password, user.password);
+            const isMatch = await bcrypt.compare(password, user.password!);
             
             if (!isMatch) {
-                return res.status(400).json({ message: 'Invalid credentials' });
+                res.status(400).json({ message: 'Invalid credentials' });
+                return;
             }
             
             // Create and sign JWT token
@@ -109,20 +118,27 @@ router.post('/login', (req, res) => {
 });
 
 // Get current user profile
-router.get('/profile', (req, res) => {
+router.get('/profile', (req: AuthenticatedRequest, res: Response): void => {
     try {
         // User data is attached to request object by auth middleware
-        const userId = req.user.id;
+        const userId = req.user?.id;
+        
+        if (!userId) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
         
         // Find the user by ID
-        db.get('SELECT id, username, created_at FROM users WHERE id = ?', [userId], (err, user) => {
+        db.get('SELECT id, username, created_at FROM users WHERE id = ?', [userId], (err: Error | null, user: User | undefined) => {
             if (err) {
                 console.error(err);
-                return res.status(500).json({ message: 'Server error' });
+                res.status(500).json({ message: 'Server error' });
+                return;
             }
             
             if (!user) {
-                return res.status(404).json({ message: 'User not found' });
+                res.status(404).json({ message: 'User not found' });
+                return;
             }
             
             // Return user profile
@@ -134,4 +150,4 @@ router.get('/profile', (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

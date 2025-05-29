@@ -20,9 +20,9 @@ lsof -ti:4000 | xargs kill -9 2>/dev/null
 pkill -f "nodemon" 2>/dev/null
 
 # Start the Node.js server
-echo -e "${BLUE}🚀 Starting Node.js server with JWT authentication and SQLite database...${NC}"
+echo -e "${BLUE}🚀 Starting Node.js TypeScript server with JWT authentication and SQLite database...${NC}"
 cd server
-npm start &
+npm run dev &
 SERVER_PID=$!
 
 # Wait for server to start and check if it's running
@@ -70,6 +70,7 @@ function cleanup {
   
   # Force kill any remaining nodemon or expo processes
   pkill -f "nodemon" 2>/dev/null
+  pkill -f "ts-node" 2>/dev/null
   pkill -f "expo" 2>/dev/null
   pkill -f "node.*index.js" 2>/dev/null
   

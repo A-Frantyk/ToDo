@@ -1,13 +1,17 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+import sqlite3 from 'sqlite3';
+import path from 'path';
+
+// Enable verbose mode for better debugging
+const sqlite = sqlite3.verbose();
 
 // Create a database connection
-const dbPath = path.resolve(__dirname, '../auth.db');
-const db = new sqlite3.Database(dbPath, (err) => {
+const dbPath = path.resolve(__dirname, '../../auth.db');
+const db = new sqlite.Database(dbPath, (err) => {
     if (err) {
         console.error('Error connecting to database:', err.message);
     } else {
         console.log('Connected to SQLite database');
+        
         // Create users table if it doesn't exist
         db.run(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,4 +62,4 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
-module.exports = db;
+export default db;

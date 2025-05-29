@@ -1,12 +1,12 @@
-const db = require('./config/database');
+import db from '../config/database';
 
 // Function to clean up todos and comments tables (keeping users table intact)
-function cleanupDatabase() {
+function cleanupDatabase(): Promise<void> {
     return new Promise((resolve, reject) => {
         console.log('🧹 Cleaning up todos and comments tables...');
         
         // Delete all comments first (due to foreign key constraints)
-        db.run('DELETE FROM comments', [], (err) => {
+        db.run('DELETE FROM comments', [], (err: Error | null) => {
             if (err) {
                 console.error('❌ Error deleting comments:', err.message);
                 reject(err);
@@ -16,7 +16,7 @@ function cleanupDatabase() {
             console.log('✅ Comments table cleared');
             
             // Then delete all todos
-            db.run('DELETE FROM todos', [], (err) => {
+            db.run('DELETE FROM todos', [], (err: Error | null) => {
                 if (err) {
                     console.error('❌ Error deleting todos:', err.message);
                     reject(err);
@@ -36,7 +36,7 @@ if (require.main === module) {
     cleanupDatabase()
         .then(() => {
             console.log('Closing database connection...');
-            db.close((err) => {
+            db.close((err: Error | null) => {
                 if (err) {
                     console.error('Error closing database:', err.message);
                 } else {
@@ -44,10 +44,10 @@ if (require.main === module) {
                 }
             });
         })
-        .catch((error) => {
+        .catch((error: Error) => {
             console.error('Cleanup failed:', error.message);
             process.exit(1);
         });
 }
 
-module.exports = { cleanupDatabase };
+export { cleanupDatabase };

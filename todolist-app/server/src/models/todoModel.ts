@@ -1,13 +1,14 @@
-const db = require('../config/database');
+import db from '../config/database';
+import { Todo, Comment, TodoRow, CommentRow } from '../types';
 
 class TodoModel {
     // Get all todos with their comments
-    static getAllTodos() {
+    static getAllTodos(): Promise<Todo[]> {
         return new Promise((resolve, reject) => {
             // First get all todos
             const todosQuery = `SELECT * FROM todos ORDER BY created_at DESC`;
             
-            db.all(todosQuery, [], (err, todoRows) => {
+            db.all(todosQuery, [], (err: Error | null, todoRows: TodoRow[]) => {
                 if (err) {
                     reject(err);
                     return;
@@ -28,14 +29,14 @@ class TodoModel {
                     ORDER BY created_at DESC
                 `;
                 
-                db.all(commentsQuery, todoIds, (err, commentRows) => {
+                db.all(commentsQuery, todoIds, (err: Error | null, commentRows: CommentRow[]) => {
                     if (err) {
                         reject(err);
                         return;
                     }
                     
                     // Group comments by todoId
-                    const commentsByTodo = {};
+                    const commentsByTodo: { [key: string]: Comment[] } = {};
                     commentRows.forEach(comment => {
                         if (!commentsByTodo[comment.todoId]) {
                             commentsByTodo[comment.todoId] = [];
@@ -43,14 +44,14 @@ class TodoModel {
                         commentsByTodo[comment.todoId].push({
                             id: comment.id,
                             title: comment.title,
-                            user: comment.user,
+                            user: comment.username,
                             userId: comment.userId,
                             created_at: comment.created_at
                         });
                     });
                     
                     // Combine todos with their comments
-                    const todos = todoRows.map(row => ({
+                    const todos: Todo[] = todoRows.map(row => ({
                         _id: row.id,
                         title: row.title,
                         userId: row.userId,
@@ -66,10 +67,10 @@ class TodoModel {
     }
 
     // Add a new todo
-    static addTodo(id, title, userId, username) {
+    static addTodo(id: string, title: string, userId: number, username: string): Promise<Todo> {
         return new Promise((resolve, reject) => {
             const query = `INSERT INTO todos (id, title, userId, username) VALUES (?, ?, ?, ?)`;
-            db.run(query, [id, title, userId, username], function(err) {
+            db.run(query, [id, title, userId, username], function(err: Error | null) {
                 if (err) {
                     reject(err);
                 } else {
@@ -86,11 +87,11 @@ class TodoModel {
     }
 
     // Delete a todo
-    static deleteTodo(id, userId) {
+    static deleteTodo(id: string, userId: number): Promise<{ deletedId: string }> {
         return new Promise((resolve, reject) => {
             // First check if the todo belongs to the user
             const checkQuery = `SELECT userId FROM todos WHERE id = ?`;
-            db.get(checkQuery, [id], (err, row) => {
+            db.get(checkQuery, [id], (err: Error | null, row: { userId: number } | undefined) => {
                 if (err) {
                     reject(err);
                 } else if (!row) {
@@ -100,13 +101,13 @@ class TodoModel {
                 } else {
                     // Delete comments first (due to foreign key constraint)
                     const deleteCommentsQuery = `DELETE FROM comments WHERE todoId = ?`;
-                    db.run(deleteCommentsQuery, [id], (err) => {
+                    db.run(deleteCommentsQuery, [id], (err: Error | null) => {
                         if (err) {
                             reject(err);
                         } else {
                             // Then delete the todo
                             const deleteTodoQuery = `DELETE FROM todos WHERE id = ?`;
-                            db.run(deleteTodoQuery, [id], function(err) {
+                            db.run(deleteTodoQuery, [id], function(err: Error | null) {
                                 if (err) {
                                     reject(err);
                                 } else {
@@ -121,7 +122,7 @@ class TodoModel {
     }
 
     // Get comments for a specific todo
-    static getComments(todoId) {
+    static getComments(todoId: string): Promise<Comment[]> {
         return new Promise((resolve, reject) => {
             const query = `
                 SELECT id, title, username as user, userId, created_at
@@ -129,22 +130,29 @@ class TodoModel {
                 WHERE todoId = ? 
                 ORDER BY created_at DESC
             `;
-            db.all(query, [todoId], (err, rows) => {
+            db.all(query, [todoId], (err: Error | null, rows: CommentRow[]) => {
                 if (err) {
                     reject(err);
                 } else {
-                    resolve(rows);
+                    const comments: Comment[] = rows.map(row => ({
+                        id: row.id,
+                        title: row.title,
+                        user: row.username,
+                        userId: row.userId,
+                        created_at: row.created_at
+                    }));
+                    resolve(comments);
                 }
             });
         });
     }
 
     // Add a comment to a todo
-    static addComment(commentId, todoId, title, userId, username) {
+    static addComment(commentId: string, todoId: string, title: string, userId: number, username: string): Promise<Comment> {
         return new Promise((resolve, reject) => {
             // First verify the todo exists
             const checkTodoQuery = `SELECT id FROM todos WHERE id = ?`;
-            db.get(checkTodoQuery, [todoId], (err, row) => {
+            db.get(checkTodoQuery, [todoId], (err: Error | null, row: { id: string } | undefined) => {
                 if (err) {
                     reject(err);
                 } else if (!row) {
@@ -152,7 +160,7 @@ class TodoModel {
                 } else {
                     // Add the comment
                     const insertQuery = `INSERT INTO comments (id, title, todoId, userId, username) VALUES (?, ?, ?, ?, ?)`;
-                    db.run(insertQuery, [commentId, title, todoId, userId, username], function(err) {
+                    db.run(insertQuery, [commentId, title, todoId, userId, username], function(err: Error | null) {
                         if (err) {
                             reject(err);
                         } else {
@@ -170,4 +178,4 @@ class TodoModel {
     }
 }
 
-module.exports = TodoModel;
+export default TodoModel;

@@ -1,13 +1,25 @@
-const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const socketIO = require("socket.io");
+import express, { Request, Response } from "express";
+import http from "http";
+import cors from "cors";
+import { Server, Socket } from "socket.io";
+import jwt from "jsonwebtoken";
 
 // Import database and authentication related modules
-const db = require("./config/database");
-const authRoutes = require("./routes/auth");
-const { verifyToken } = require("./middleware/auth");
-const TodoModel = require("./models/todoModel");
+import db from "./config/database";
+import authRoutes from "./routes/auth";
+import { verifyToken, JWT_SECRET } from "./middleware/auth";
+import TodoModel from "./models/todoModel";
+import { 
+    AuthenticatedRequest, 
+    AuthenticatedSocket, 
+    ServerToClientEvents, 
+    ClientToServerEvents, 
+    InterServerEvents, 
+    SocketData,
+    UserPayload,
+    CommentCreateData,
+    TodoCreateData
+} from "./types";
 
 const app = express();
 const PORT = 4000;
@@ -17,7 +29,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const server = http.createServer(app);
-const io = socketIO(server, {
+const io = new Server<
+    ClientToServerEvents,
+    ServerToClientEvents,
+    InterServerEvents,
+    SocketData
+>(server, {
     cors: {
         origin: "*", // Accept connections from any origin for mobile app
         methods: ["GET", "POST"]
@@ -32,24 +49,24 @@ io.use((socket, next) => {
             return next(new Error('Authentication error: Token required'));
         }
         
-        // Import JWT_SECRET here to avoid circular dependencies
-        const { JWT_SECRET } = require('./middleware/auth');
-        const decoded = require('jsonwebtoken').verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET) as UserPayload;
         
         // Attach user data to socket
-        socket.user = decoded;
+        (socket as AuthenticatedSocket).user = decoded;
         next();
     } catch (error) {
-        console.error('Socket authentication error:', error.message);
+        console.error('Socket authentication error:', (error as Error).message);
         next(new Error('Authentication error: Invalid token'));
     }
 });
 
 // Function to generate random ID
-const generateID = () => Math.random().toString(36).substring(2, 10);
+const generateID = (): string => Math.random().toString(36).substring(2, 10);
 
-io.on("connection", async (socket) => {
-    console.log(`⚡: ${socket.id} user just connected! User ID: ${socket.user.id}, Username: ${socket.user.username}`);
+io.on("connection", async (socket: Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>) => {
+    // Cast to AuthenticatedSocket since authentication middleware has already verified the user
+    const authSocket = socket as AuthenticatedSocket;
+    console.log(`⚡: ${socket.id} user just connected! User ID: ${authSocket.user.id}, Username: ${authSocket.user.username}`);
 
     // Send todos to the client
     try {
@@ -61,13 +78,13 @@ io.on("connection", async (socket) => {
     }
 
     // Add a todo
-    socket.on("addTodo", async (todo) => {
+    socket.on("addTodo", async (todo: string) => {
         try {
             const newTodo = await TodoModel.addTodo(
                 generateID(),
                 todo,
-                socket.user.id,
-                socket.user.username
+                authSocket.user.id,
+                authSocket.user.username
             );
             
             // Broadcast updated todos to all clients
@@ -80,21 +97,21 @@ io.on("connection", async (socket) => {
     });
 
     // Delete a todo
-    socket.on("deleteTodo", async (id) => {
+    socket.on("deleteTodo", async (id: string) => {
         try {
-            await TodoModel.deleteTodo(id, socket.user.id);
+            await TodoModel.deleteTodo(id, authSocket.user.id);
             
             // Broadcast updated todos to all clients
             const todos = await TodoModel.getAllTodos();
             io.emit("todos", todos);
         } catch (error) {
             console.error('Error deleting todo:', error);
-            socket.emit("error", { message: error.message });
+            socket.emit("error", { message: (error as Error).message });
         }
     });
 
     // Retrieve comments for a specific todo
-    socket.on("retrieveComments", async (id) => {
+    socket.on("retrieveComments", async (id: string) => {
         try {
             const comments = await TodoModel.getComments(id);
             socket.emit("displayComments", {
@@ -108,14 +125,14 @@ io.on("connection", async (socket) => {
     });
 
     // Add a comment to a todo
-    socket.on("addComment", async (data) => {
+    socket.on("addComment", async (data: CommentCreateData) => {
         try {
             await TodoModel.addComment(
                 generateID(),
                 data.todo_id,
                 data.comment,
-                socket.user.id,
-                socket.user.username
+                authSocket.user.id,
+                authSocket.user.username
             );
             
             // Get updated comments and broadcast to all clients
@@ -126,7 +143,7 @@ io.on("connection", async (socket) => {
             });
         } catch (error) {
             console.error('Error adding comment:', error);
-            socket.emit("error", { message: error.message });
+            socket.emit("error", { message: (error as Error).message });
         }
     });
 
@@ -137,7 +154,7 @@ io.on("connection", async (socket) => {
 });
 
 // API route to get todos
-app.get("/todos", verifyToken, async (req, res) => {
+app.get("/todos", verifyToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
         const todos = await TodoModel.getAllTodos();
         res.json(todos);
@@ -148,18 +165,19 @@ app.get("/todos", verifyToken, async (req, res) => {
 });
 
 // API route to add a todo
-app.post("/todos", verifyToken, async (req, res) => {
+app.post("/todos", verifyToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-        const { title } = req.body;
+        const { title }: TodoCreateData = req.body;
         if (!title) {
-            return res.status(400).json({ error: "Title is required" });
+            res.status(400).json({ error: "Title is required" });
+            return;
         }
         
         const newTodo = await TodoModel.addTodo(
             generateID(),
             title,
-            req.user.id,
-            req.user.username
+            req.user!.id,
+            req.user!.username
         );
         
         res.status(201).json(newTodo);
@@ -170,15 +188,16 @@ app.post("/todos", verifyToken, async (req, res) => {
 });
 
 // API route to delete a todo
-app.delete("/todos/:id", verifyToken, async (req, res) => {
+app.delete("/todos/:id", verifyToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        await TodoModel.deleteTodo(id, req.user.id);
+        await TodoModel.deleteTodo(id, req.user!.id);
         res.json({ message: "Todo deleted successfully" });
     } catch (error) {
         console.error('Error deleting todo:', error);
-        if (error.message.includes('Unauthorized') || error.message.includes('not found')) {
-            res.status(403).json({ error: error.message });
+        const errorMessage = (error as Error).message;
+        if (errorMessage.includes('Unauthorized') || errorMessage.includes('not found')) {
+            res.status(403).json({ error: errorMessage });
         } else {
             res.status(500).json({ error: "Error deleting todo" });
         }
@@ -186,7 +205,7 @@ app.delete("/todos/:id", verifyToken, async (req, res) => {
 });
 
 // API route to get comments for a todo
-app.get("/todos/:id/comments", verifyToken, async (req, res) => {
+app.get("/todos/:id/comments", verifyToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
         const comments = await TodoModel.getComments(id);
@@ -198,28 +217,30 @@ app.get("/todos/:id/comments", verifyToken, async (req, res) => {
 });
 
 // API route to add a comment to a todo
-app.post("/todos/:id/comments", verifyToken, async (req, res) => {
+app.post("/todos/:id/comments", verifyToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        const { comment } = req.body;
+        const { comment }: { comment: string } = req.body;
         
         if (!comment) {
-            return res.status(400).json({ error: "Comment is required" });
+            res.status(400).json({ error: "Comment is required" });
+            return;
         }
         
         const newComment = await TodoModel.addComment(
             generateID(),
             id,
             comment,
-            req.user.id,
-            req.user.username
+            req.user!.id,
+            req.user!.username
         );
         
         res.status(201).json(newComment);
     } catch (error) {
         console.error('Error adding comment:', error);
-        if (error.message.includes('not found')) {
-            res.status(404).json({ error: error.message });
+        const errorMessage = (error as Error).message;
+        if (errorMessage.includes('not found')) {
+            res.status(404).json({ error: errorMessage });
         } else {
             res.status(500).json({ error: "Error adding comment" });
         }
@@ -227,14 +248,14 @@ app.post("/todos/:id/comments", verifyToken, async (req, res) => {
 });
 
 // Default route
-app.get("/api", (req, res) => {
+app.get("/api", (req: Request, res: Response): void => {
     res.json({
         message: "Hello world",
     });
 });
 
 // Protected route example
-app.get("/api/protected", verifyToken, (req, res) => {
+app.get("/api/protected", verifyToken, (req: AuthenticatedRequest, res: Response): void => {
     res.json({
         message: "This is a protected route",
         user: req.user
