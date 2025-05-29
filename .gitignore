@@ -7,6 +7,10 @@
 ehthumbs.db
 Thumbs.db
 
+# Database files
+auth.db
+todolist-app/server/auth.db
+
 # Node.js / npm
 node_modules
 */node_modules/
